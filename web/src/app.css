@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* tes variables de couleurs à toi */
+:root {
+    --color-background: 10 10 10;
+    --color-foreground: 250 250 250;
+    --color-card: 23 23 23;
+    --color-card-foreground: 250 250 250;
+    --color-primary: 6 182 212;
+    --color-primary-foreground: 10 10 10;
+    --color-secondary-foreground: 250 250 250;
+    --color-muted: 39 39 42;
+    --color-muted-foreground: 161 161 170;
+    --color-accent: 34 211 238;
+    --color-accent-foreground: 10 10 10;
+    --color-destructive: 239 68 68;
+    --color-destructive-foreground: 250 250 250;
+    --color-border: 39 39 42;
+    --color-input: 39 39 42;
+    --color-ring: 6 182 212;
+    --color-textarea: 39 39 42;
+    --radius: 0.5rem;
+}
+
+* {
+    border-color: rgb(var(--color-border));
+}
+
+body {
+    background-color: rgb(var(--color-background));
+    color: rgb(var(--color-foreground));
+}
