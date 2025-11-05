@@ -130,21 +130,21 @@ def compare():
                 "non_optimized": {
                     "summary": result_non_opt['summary'],
                     "word_count": result_non_opt['word_count'],
-                    "latency_ms": round(result_non_opt['latency'] * 1000, 2),
+                    "latency_ms": result_non_opt['latency'],
                     "latency_s": result_non_opt['latency'],
                     "energy_wh": result_non_opt['energy_consumed']
                 },
                 "optimized": {
                     "summary": result_opt['summary'],
                     "word_count": result_opt['word_count'],
-                    "latency_ms": round(result_opt['latency'] * 1000, 2),
+                    "latency_ms": result_opt['latency'] ,
                     "latency_s": result_opt['latency'],
                     "energy_wh": result_opt['energy_consumed']
                 },
                 "performance_gains": {
                     "latency_reduction_percent": latency_gain,
                     "energy_reduction_percent": energy_gain,
-                    "latency_saved_ms": round((result_non_opt['latency'] - result_opt['latency']) * 1000, 2),
+                    "latency_saved_ms": round(result_non_opt['latency'] - result_opt['latency'], 2),
                     "energy_saved_wh": round(result_non_opt['energy_consumed'] - result_opt['energy_consumed'], 6)
                 }
             },
