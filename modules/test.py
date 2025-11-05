@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-model_path = "../pythia70m-french-mlsum-adapted/"
+model_path = "../models/pythia70m-french-mlsum-adapted/"
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float32)
