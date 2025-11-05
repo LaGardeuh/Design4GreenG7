@@ -601,7 +601,7 @@ Example: Climate change is one of the most pressing issues facing our planet tod
                 document.getElementById("resultMode").textContent = `📄 Résumé généré (Mode ${data.mode})`;
                 document.getElementById("summaryText").textContent = data.results.summary;
                 document.getElementById("wordCount").textContent = data.results.word_count;
-                document.getElementById("latency").textContent = `${data.results.latency} ms`;
+                document.getElementById("latency").textContent = `${data.results.latency_ms} ms`;
                 document.getElementById("energy").textContent = `${data.results.energy_wh} Wh`;
 
             } catch (error) {
@@ -651,13 +651,13 @@ Example: Climate change is one of the most pressing issues facing our planet tod
                 // Version non-optimisée
                 document.getElementById("summaryNonOpt").textContent = comp.non_optimized.summary;
                 document.getElementById("wordCountNonOpt").textContent = comp.non_optimized.word_count;
-                document.getElementById("latencyNonOpt").textContent = `${comp.non_optimized.latency} ms`;
+                document.getElementById("latencyNonOpt").textContent = `${comp.non_optimized.latency_ms} ms`;
                 document.getElementById("energyNonOpt").textContent = `${comp.non_optimized.energy_wh} Wh`;
 
                 // Version optimisée
                 document.getElementById("summaryOpt").textContent = comp.optimized.summary;
                 document.getElementById("wordCountOpt").textContent = comp.optimized.word_count;
-                document.getElementById("latencyOpt").textContent = `${comp.optimized.latency} ms`;
+                document.getElementById("latencyOpt").textContent = `${comp.optimized.latency_ms} ms`;
                 document.getElementById("energyOpt").textContent = `${comp.optimized.energy_wh} Wh`;
 
                 // Gains

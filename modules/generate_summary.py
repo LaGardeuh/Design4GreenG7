@@ -17,22 +17,22 @@ def generate_summary(text: str, optimized: bool = False) -> dict:
         dict contenant:
             - summary: le résumé généré
             - word_count: nombre de mots du résumé
-            - latency: temps d'exécution en secondes
+            - latency: temps d'exécution en ms
             - energy_consumed: énergie consommée en Wh
     """
 
-    # Initialisation du tracker d'émissions pour mesurer la consommation énergétique
+    # Initialisation du tracker d'émissions
     tracker = EmissionsTracker(
         project_name="text_summarization",
-        measure_power_secs=1,  # Mesure chaque seconde
-        save_to_file=False,  # Ne sauvegarde pas dans un fichier
-        log_level="error"  # Réduit les logs pour ne pas polluer la sortie
+        measure_power_secs=1,
+        save_to_file=False,
+        log_level="error"
     )
 
-    # Démarrage du chronomètre pour mesurer la latence
+    # Démarrage du chronomètre
     start_time = time.time()
 
-    # Démarrage du tracker d'émissions
+    # Démarrage du tracker
     tracker.start()
 
     try:
@@ -40,204 +40,245 @@ def generate_summary(text: str, optimized: bool = False) -> dict:
         model_name = "EleutherAI/pythia-70m-deduped"
 
         if optimized:
-            # VERSION OPTIMISÉE
-            # Chargement du tokenizer (léger, pas besoin d'optimisation)
+            # ============= VERSION OPTIMISÉE =============
+
             tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-            # Chargement du modèle en half precision (float16) pour réduire la mémoire et accélérer
-            # torch_dtype=torch.float16 divise par 2 la taille du modèle en mémoire
+            # Chargement en float16 pour réduire mémoire et accélérer
             model = GPTNeoXForCausalLM.from_pretrained(
                 model_name,
-                dtype=torch.float16,  # Utilise 16 bits au lieu de 32
-                low_cpu_mem_usage=True  # Optimise le chargement en mémoire
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True
             )
 
-            # Détection et utilisation du GPU si disponible
+            # GPU si disponible
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model = model.to(device)
 
-            # Mode évaluation : désactive dropout et batch normalization
-            # Réduit les calculs inutiles pendant l'inférence
+            # Mode évaluation
             model.eval()
 
-            # Tronquer le texte si trop long (garde les 3800 premiers caractères)
-            # Laisse de la marge pour le prompt
-            text = text[:3800]
+            # CORRECTION 1: Tronquer le texte plus court pour laisser place au prompt
+            # et prendre les phrases les plus importantes (début + fin)
+            text = text.strip()
+            if len(text) > 2000:
+                # Prend début + fin pour capturer intro et conclusion
+                text = text[:1000] + " [...] " + text[-1000:]
 
-            # Création d'un prompt optimisé pour guider le modèle
-            # On utilise des exemples (few-shot learning) pour lui montrer le format attendu
-            prompt = f"""Summarize in exactly 10-15 words:
-
-Text: The research team discovered a new species of deep-sea fish with bioluminescent properties off the coast of Japan.
-Summary: Research team finds new bioluminescent deep-sea fish species near Japan.
+            # CORRECTION 2: Prompt plus directif avec contrainte forte
+            # On force le modèle à continuer UNIQUEMENT après le dernier Summary:
+            prompt = f"""Text: Scientists discovered new species in Amazon rainforest with unique adaptations.
+Summary: Amazon rainforest yields new species with unique biological adaptations.
 
 Text: {text}
 Summary:"""
 
-            # Tokenization du prompt
-            # return_tensors="pt" retourne des tenseurs PyTorch
-            # truncation=True coupe si trop long
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=900)
-
-            # Déplace les inputs sur le même device que le modèle (GPU ou CPU)
+            # Tokenization
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=600)
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            # Génération avec le modèle en mode optimisé
-            with torch.no_grad():  # Désactive le calcul des gradients (pas d'entraînement)
-                # torch.inference_mode() est plus optimisé que no_grad() pour l'inférence
+            # CORRECTION 3: Paramètres de génération plus stricts
+            with torch.no_grad():
                 with torch.inference_mode():
                     outputs = model.generate(
                         **inputs,
-                        max_new_tokens=20,  # Maximum 20 nouveaux tokens (≈15 mots)
-                        min_new_tokens=8,  # Minimum 8 tokens (≈10 mots)
-                        do_sample=False,  # Génération déterministe (greedy)
-                        num_beams=1,  # Pas de beam search (trop coûteux)
-                        temperature=1.0,  # Pas de température car do_sample=False
-                        pad_token_id=tokenizer.eos_token_id,  # Token de padding
-                        eos_token_id=tokenizer.eos_token_id,  # Token de fin
-                        use_cache=True  # Utilise le KV cache pour accélérer
+                        max_new_tokens=18,  # RÉDUIT pour éviter répétitions
+                        min_new_tokens=10,  # AUGMENTÉ pour forcer minimum
+                        do_sample=False,  # Greedy = déterministe
+                        num_beams=1,  # Pas de beam search
+                        repetition_penalty=1.5,  # AJOUTÉ: pénalise les répétitions
+                        no_repeat_ngram_size=3,  # AJOUTÉ: empêche répétition de 3+ mots
+                        temperature=1.0,
+                        pad_token_id=tokenizer.eos_token_id,
+                        eos_token_id=tokenizer.eos_token_id,
+                        use_cache=True
                     )
 
         else:
-            # VERSION NON-OPTIMISÉE (baseline)
-            # Chargement standard sans optimisations
+            # ============= VERSION NON-OPTIMISÉE (AMÉLIORÉE) =============
+
             tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-            # Chargement en float32 (précision complète, plus lent et plus lourd)
+            # Float32 complet
             model = GPTNeoXForCausalLM.from_pretrained(model_name)
 
-            # Reste sur CPU même si GPU disponible
+            # CPU forcé
             device = "cpu"
             model = model.to(device)
 
-            # Pas de mode eval explicite
+            # CORRECTION 4: Même troncature pour fairness
+            text = text.strip()
+            if len(text) > 2000:
+                text = text[:1000] + " [...] " + text[-1000:]
 
-            # Texte complet sans troncature
-            text = text[:4000]
-
-            # Prompt simple sans exemples
-            prompt = f"""Summarize in exactly 10-15 words:
-
-Text: The research team discovered a new species of deep-sea fish with bioluminescent properties off the coast of Japan.
-Summary: Research team finds new bioluminescent deep-sea fish species near Japan.
+            # CORRECTION 5: Même prompt pour comparaison équitable
+            prompt = f"""Text: Scientists discovered new species in Amazon rainforest with unique adaptations.
+Summary: Amazon rainforest yields new species with unique biological adaptations.
 
 Text: {text}
 Summary:"""
 
-            # Tokenization standard
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1000)
+            # Tokenization
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=600)
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            # Génération sans optimisations
+            # CORRECTION 6: Paramètres améliorés mais toujours plus lents
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=25,  # Plus de tokens autorisés
-                min_new_tokens=5,  # Moins de contrainte sur le minimum
-                do_sample=True,  # Échantillonnage (non déterministe)
-                num_beams=2,  # Beam search (plus lent mais parfois meilleur)
-                temperature=0.7,  # Contrôle la créativité
-                top_p=0.9,  # Nucleus sampling
+                max_new_tokens=18,
+                min_new_tokens=10,
+                do_sample=True,  # Sampling (plus créatif mais moins stable)
+                num_beams=2,  # Beam search (plus lent)
+                repetition_penalty=1.3,  # Moins strict qu'optimisé
+                no_repeat_ngram_size=2,  # Moins strict qu'optimisé
+                temperature=0.8,  # Température modérée
+                top_p=0.92,  # Nucleus sampling
                 pad_token_id=tokenizer.eos_token_id,
                 eos_token_id=tokenizer.eos_token_id
             )
 
-        # Décodage de la sortie du modèle en texte
-        # skip_special_tokens=True enlève les tokens spéciaux comme <eos>
+        # ============= POST-TRAITEMENT AMÉLIORÉ =============
+
+        # Décodage
         generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        # Extraction du résumé après "Summary:"
-        # On cherche le texte après le dernier "Summary:" dans la sortie
+        # CORRECTION 7: Extraction plus robuste du résumé
+        # On prend SEULEMENT ce qui vient après le DERNIER "Summary:"
         if "Summary:" in generated_text:
-            summary = generated_text.split("Summary:")[-1].strip()
+            parts = generated_text.split("Summary:")
+            # Prend la dernière partie (celle générée, pas celle du prompt)
+            summary = parts[-1].strip()
         else:
-            # Si pas de "Summary:" trouvé, on prend tout après le prompt
+            # Fallback: prend tout après le prompt
             summary = generated_text[len(prompt):].strip()
 
-        # Nettoyage du résumé
-        # Enlève les sauts de ligne et espaces multiples
+        # CORRECTION 8: Nettoyage plus agressif
+        # Enlève les retours à la ligne, tabs, espaces multiples
         summary = re.sub(r'\s+', ' ', summary).strip()
 
-        # Prend seulement la première phrase si plusieurs
-        summary = summary.split('.')[0]
+        # Enlève les répétitions de mots consécutifs (ex: "the the the")
+        summary = re.sub(r'\b(\w+)(\s+\1\b)+', r'\1', summary, flags=re.IGNORECASE)
 
-        # Limite à environ 15 mots maximum en coupant après le 15ème mot
+        # Prend seulement la première phrase (avant le premier . ! ou ?)
+        summary = re.split(r'[.!?]', summary)[0].strip()
+
+        # CORRECTION 9: Vérification de qualité du résumé
         words = summary.split()
+
+        # Si commence par des mots du prompt, les enlever
+        prompt_words = ["text", "summary", "summarize"]
+        while words and words[0].lower() in prompt_words:
+            words.pop(0)
+
+        # Enlève les caractères spéciaux en début/fin
+        if words:
+            words[0] = words[0].lstrip(':-,')
+            words[-1] = words[-1].rstrip(':-,')
+
+        # Limite stricte à 15 mots
         if len(words) > 15:
-            summary = ' '.join(words[:15])
+            words = words[:15]
 
-        # Si le résumé est trop court, on ajoute des mots du texte original
-        if len(words) < 10:
-            # Prend les premiers mots du texte original comme fallback
-            original_words = text.split()[:15]
-            summary = ' '.join(original_words[:12]) + "..."
+        # CORRECTION 10: Fallback intelligent si résumé invalide
+        if len(words) < 10 or len(words) > 15:
+            # Extraire les premières phrases importantes du texte original
+            original_sentences = re.split(r'[.!?]', text)
+            # Nettoyer les phrases
+            original_sentences = [s.strip() for s in original_sentences if len(s.strip()) > 20]
 
-        # Compte le nombre de mots dans le résumé final
+            if original_sentences:
+                # Prendre la première phrase et la tronquer à 12-15 mots
+                first_sentence = original_sentences[0]
+                words = first_sentence.split()[:14]
+                # S'assurer qu'on a au moins 10 mots
+                if len(words) < 10 and len(original_sentences) > 1:
+                    words.extend(original_sentences[1].split())
+                words = words[:15]  # Max 15 mots
+
+        # Reconstruction du résumé final
+        summary = ' '.join(words)
+
+        # Capitalise la première lettre
+        if summary:
+            summary = summary[0].upper() + summary[1:]
+
+        # Compte final des mots
         word_count = len(summary.split())
 
     finally:
-        # Arrêt du tracker et récupération des métriques
-        # finally garantit l'exécution même en cas d'erreur
+        # Arrêt du tracker
         emissions_data = tracker.stop()
 
-        # Calcul de la latence totale en mili-secondes arrondi a 2 chiffre apres la virgule
-        latency = round((time.time() - start_time)* 1000, 2)
+        # Calcul de la latence en millisecondes
+        latency = round((time.time() - start_time) * 1000, 2)
 
-        # Conversion des émissions en Wh
-        # emissions_data contient l'énergie en kWh, on convertit en Wh
+        # Conversion en Wh
         if emissions_data:
-            energy_consumed = emissions_data * 1000  # kWh -> Wh
+            energy_consumed = emissions_data * 1000
         else:
             energy_consumed = 0.0
 
-    # Retour du dictionnaire avec tous les résultats
+    # Retour des résultats
     return {
         "summary": summary,
         "word_count": word_count,
         "latency": latency,
-        "energy_consumed": round(energy_consumed, 6)  # Arrondi à 6 décimales
+        "energy_consumed": round(energy_consumed, 6)
     }
 
 
-# Fonction de test pour valider le fonctionnement
+# Fonction de test
 def test_summary():
-    """Fonction de test avec un exemple"""
+    """Fonction de test avec exemples"""
 
-    test_text = """
-    Climate change is one of the most pressing issues facing our planet today. 
+    test_text = """Climate change is one of the most pressing issues facing our planet today. 
     Rising global temperatures are causing ice caps to melt, sea levels to rise, 
     and weather patterns to become more extreme. Scientists warn that without 
     immediate action to reduce greenhouse gas emissions, the consequences could 
-    be catastrophic for future generations. Governments and organizations worldwide 
-    are working to implement sustainable practices and transition to renewable 
-    energy sources to combat this global crisis.
-    """
-    test_text2 = """The ocean, covering more than seventy percent of Earth’s surface, has long been both a source of wonder and a foundation for human civilization. From the earliest sailors navigating by the stars to modern scientists tracking climate change, humanity’s relationship with the sea has shaped our evolution, our economy, and our imagination. Yet the ocean is not merely a vast expanse of water; it is a dynamic, interconnected system that regulates weather, absorbs carbon dioxide, and supports life on a scale unmatched by any other environment. Within its depths reside the smallest plankton and the largest mammals, creatures that have evolved intricate adaptations to thrive under crushing pressure, freezing darkness, and the endless cycle of tides.
+    be catastrophic for future generations."""
 
-Marine ecosystems are, however, increasingly under threat. Rising temperatures disrupt coral reefs, causing bleaching events that destroy entire habitats. Plastic pollution, once a distant concern, now pervades even the most remote regions of the sea. Microscopic fragments of synthetic material have been found in fish, seabirds, and even human bloodstreams, a grim reminder of the deep connections between our consumer habits and the planet’s health. Overfishing has further destabilized the delicate balance of oceanic food webs, with many species teetering on the brink of collapse.
+    test_text2 = """The ocean covering more than seventy percent of Earth's surface has long been 
+    both a source of wonder and a foundation for human civilization. Marine ecosystems are 
+    increasingly under threat from rising temperatures, plastic pollution, and overfishing. 
+    International agreements aim to reduce carbon emissions and protect marine biodiversity."""
 
-Despite this, hope remains anchored in innovation and cooperation. International agreements aim to reduce carbon emissions and protect marine biodiversity. Technologies such as satellite monitoring, underwater drones, and machine learning algorithms allow scientists to map ecosystems and track illegal fishing in real time. Renewable energy projects harness tides and waves to generate clean power, transforming the sea from a victim of exploitation into a partner in sustainability.
+    print("=" * 60)
+    print("TEST 1: Climate change")
+    print("=" * 60)
 
-But the challenge extends beyond technology. Preserving the ocean requires a shift in consciousness — an acknowledgment that what happens below the waves affects every breath we take. The phytoplankton drifting invisibly in the water produce much of the oxygen in our atmosphere. The circulation of ocean currents redistributes heat and stabilizes global climate patterns. Every drop of rain, every gust of wind, and every fertile field is linked, in some way, to the pulse of the sea.
-
-The ocean teaches humility. It reminds us of forces older and greater than human ambition. When a storm swells over the horizon, no amount of wealth or technology can command it to stop. Yet the same waters that destroy can also heal. They inspire art, sustain livelihoods, and offer a sense of continuity in a world increasingly fragmented by change.
-
-As the twenty-first century unfolds, the question is not whether we will explore and exploit the ocean further — that is inevitable — but whether we will learn to do so wisely. Future generations will judge us by the clarity of the waters we leave behind, by the resilience of the reefs, and by the songs of the whales that still echo through the deep. The ocean’s story is inseparable from our own, and its fate is a mirror reflecting our collective choices. To safeguard it is not an act of charity but of survival, a recognition that protecting the sea is, in essence, protecting ourselves."""
-
-    print("Test avec version NON-OPTIMISÉE:")
+    print("\n🔴 Version NON-OPTIMISÉE:")
     result_non_opt = generate_summary(test_text, optimized=False)
     print(f"Résumé: {result_non_opt['summary']}")
-    print(f"Nombre de mots: {result_non_opt['word_count']}")
-    print(f"Latence: {result_non_opt['latency']}s")
+    print(f"Mots: {result_non_opt['word_count']}")
+    print(f"Latence: {result_non_opt['latency']} ms")
     print(f"Énergie: {result_non_opt['energy_consumed']} Wh")
-    print("\n" + "=" * 50 + "\n")
 
-    print("Test avec version OPTIMISÉE:")
+    print("\n✅ Version OPTIMISÉE:")
     result_opt = generate_summary(test_text, optimized=True)
     print(f"Résumé: {result_opt['summary']}")
-    print(f"Nombre de mots: {result_opt['word_count']}")
-    print(f"Latence: {result_opt['latency']}s")
+    print(f"Mots: {result_opt['word_count']}")
+    print(f"Latence: {result_opt['latency']} ms")
     print(f"Énergie: {result_opt['energy_consumed']} Wh")
 
+    # Calcul des gains
+    if result_non_opt['latency'] > 0:
+        latency_gain = round(((result_non_opt['latency'] - result_opt['latency']) / result_non_opt['latency']) * 100, 2)
+        print(f"\n⚡ Gain de latence: {latency_gain}%")
+
+    print("\n" + "=" * 60)
+    print("TEST 2: Ocean")
+    print("=" * 60)
+
+    print("\n🔴 Version NON-OPTIMISÉE:")
+    result_non_opt2 = generate_summary(test_text2, optimized=False)
+    print(f"Résumé: {result_non_opt2['summary']}")
+    print(f"Mots: {result_non_opt2['word_count']}")
+
+    print("\n✅ Version OPTIMISÉE:")
+    result_opt2 = generate_summary(test_text2, optimized=True)
+    print(f"Résumé: {result_opt2['summary']}")
+    print(f"Mots: {result_opt2['word_count']}")
+
 # Décommenter pour tester
-#if __name__ == "__main__":
-#   test_summary()
+# if __name__ == "__main__":
+#     test_summary()
