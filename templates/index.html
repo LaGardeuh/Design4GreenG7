@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <script>
+        async function sendText() {
+            const textToSum = document.getElementById("textToSum").value;
+
+            const response = await fetch("/summarize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ textToSum: textToSum })
+            });
+
+            const data = await response.json();
+            document.getElementById("result").innerText = data.summary;
+        }
+    </script>
+</head>
+<body>
+    <h1>Test API Flask</h1>
+
+    <textarea id="textToSum" placeholder="Tape ton texte ici..."></textarea>
+    <br><br>
+
+    <button onclick="sendText()">Envoyer au back</button>
+
+    <h2>Résumé :</h2>
+    <p id="result"></p>
+</body>
+</html>
