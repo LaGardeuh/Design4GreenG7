@@ -48,12 +48,11 @@ def summarize():
         # Génération du résumé avec le paramètre optimized choisi
         result = generate_summary(text, optimized=optimized)
 
-        # Extraction des résultats
+        # Extraction des résultats (latence déjà en ms)
         summary = result['summary']
         word_count = result['word_count']
-        latency = result['latency']
+        latency_ms = result['latency']  # Déjà en millisecondes
         energy = result['energy_consumed']
-
 
         # Retour de la réponse JSON bien formatée
         return jsonify({
@@ -62,7 +61,7 @@ def summarize():
             "results": {
                 "summary": summary,
                 "word_count": word_count,
-                "latency_s": latency,
+                "latency_ms": latency_ms,
                 "energy_wh": energy
             },
             "metadata": {
@@ -131,13 +130,15 @@ def compare():
                 "non_optimized": {
                     "summary": result_non_opt['summary'],
                     "word_count": result_non_opt['word_count'],
-                    "latency": result_non_opt['latency'],
+                    "latency_ms": result_non_opt['latency'],
+                    "latency_s": result_non_opt['latency'],
                     "energy_wh": result_non_opt['energy_consumed']
                 },
                 "optimized": {
                     "summary": result_opt['summary'],
                     "word_count": result_opt['word_count'],
-                    "latency": result_opt['latency'],
+                    "latency_ms": result_opt['latency'] ,
+                    "latency_s": result_opt['latency'],
                     "energy_wh": result_opt['energy_consumed']
                 },
                 "performance_gains": {
@@ -162,4 +163,4 @@ def compare():
 if __name__ == "__main__":
     # Lancement du serveur Flask en mode debug
     # debug=True permet le rechargement automatique et affiche les erreurs détaillées
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
