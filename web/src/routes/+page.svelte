@@ -11,13 +11,61 @@
         text = target.value;
     }
 
-    function handleSummarize() {
+    async function handleSummarize() {
+        if (!text) return;
+
         const start = performance.now();
-        setTimeout(() => {
+        try {
+            const response = await fetch("/summarize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    textToSum: text,
+                    optimized: optimize
+                })
+            });
+
+            const data = await response.json();
             latency = Math.round(performance.now() - start);
-            consumption = Number((consumption + 0.05).toFixed(2));
-            alert(`Résumé (${language}):\n${text.slice(0, 200)}...`);
-        }, Math.random() * 500 + 200);
+
+            if (data.success) {
+                consumption = Number((consumption + 0.05).toFixed(2));
+                alert(`Résumé (${language}, ${data.mode}):\n${data.results.summary}`);
+            } else {
+                alert(`Erreur: ${data.error}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erreur serveur, impossible de générer le résumé");
+        }
+    }
+
+    async function handleCompare() {
+        if (!text) return;
+
+        try {
+            const response = await fetch("/compare", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ textToSum: text })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(
+                    `Comparaison Optimisé vs Non-optimisé :\n\n` +
+                    `Optimisé:\n${data.comparison.optimized.summary}\n\n` +
+                    `Non-optimisé:\n${data.comparison.non_optimized.summary}\n\n` +
+                    `Gains : Latence ${data.comparison.performance_gains.latency_reduction_percent}% / Énergie ${data.comparison.performance_gains.energy_reduction_percent}%`
+                );
+            } else {
+                alert(`Erreur: ${data.error}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erreur serveur, impossible de comparer les modèles");
+        }
     }
 </script>
 
@@ -25,19 +73,19 @@
     <div class="w-full max-w-4xl space-y-6">
         <!-- Header -->
         <div class="text-center space-y-2">
-            <h1 class="text-4xl font-bold text-foreground">D4G Summarizer by Thomas,Malo,Aubin</h1>
-            <p class="text-muted-foreground">Summarize your text under 4000 caracters</p>
+            <h1 class="text-4xl font-bold text-foreground">D4G Summarizer by Thomas, Malo, Aubin</h1>
+            <p class="text-muted-foreground">Summarize your text under 4000 characters</p>
         </div>
 
         <!-- Main Card -->
         <div class="bg-card border border-border rounded-xl p-6 space-y-4">
             <!-- Textarea -->
             <div class="relative">
-				<textarea
+                <textarea
                         class="w-full h-64 p-4 border border-border rounded-lg resize-none
-					       focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
-					       text-foreground placeholder:text-muted-foreground color-background"
-                        style="background-color: rgb(var(--color-textarea));"
+                           focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
+                           text-foreground placeholder:text-muted-foreground"
+                        style="background-color: rgb(var(--color-card));"
                         placeholder="Paste your text here..."
                         value={text}
                         oninput={handleInput}
@@ -55,9 +103,9 @@
 
                     <select
                             bind:value={language}
-                            class="border border-border rounded-lg px-4 py-2 text-foreground outline-none focus:ring-2 focus:ring-primary/50">
-                        style="background-color: rgb(var(--color-card));"
-                        >
+                            class="border border-border rounded-lg px-4 py-2 text-foreground outline-none focus:ring-2 focus:ring-primary/50"
+                            style="background-color: rgb(var(--color-card));"
+                    >
                         <option value="fr">🇫🇷 French</option>
                         <option value="en">🇬🇧 English</option>
                         <!--<option value="es">🇪🇸 Español</option>-->
@@ -70,7 +118,7 @@
                     </label>
                 </div>
 
-                <!-- Buttons Effacer/Summarize/Comparer les 2 modeles -->
+                <!-- Buttons Effacer/Summarize/Comparer les 2 modèles -->
                 <div class="flex gap-3">
                     <button
                             onclick={() => text = ""}
@@ -83,7 +131,14 @@
                             disabled={text.length === 0}
                             class="px-6 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                     >
-                        Sumarize
+                        Summarize
+                    </button>
+                    <button
+                            onclick={handleCompare}
+                            disabled={text.length === 0}
+                            class="px-6 py-2 rounded-lg font-medium bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+                    >
+                        Compare Models
                     </button>
                 </div>
             </div>
