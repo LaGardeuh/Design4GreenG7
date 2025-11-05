@@ -2,31 +2,689 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title></title>
-    <script>
-        async function sendText() {
-            const textToSum = document.getElementById("textToSum").value;
-
-            const response = await fetch("/summarize", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ textToSum: textToSum })
-            });
-
-            const data = await response.json();
-            document.getElementById("result").innerText = data.summary;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Résumé de Texte - Design for Green</title>
+    <style>
+        /* Reset et styles de base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    </script>
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        /* Zone principale */
+        .main-content {
+            padding: 40px;
+        }
+
+        /* Choix du mode */
+        .mode-selector {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+        }
+
+        .mode-selector h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .radio-option input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .radio-option label {
+            font-size: 1.1em;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Zone de texte */
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-section label {
+            display: block;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .char-counter {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .char-counter.warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .char-counter.error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 1em;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        /* Boutons */
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-summarize {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-summarize:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-compare {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-compare:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-clear {
+            background: #6c757d;
+            color: white;
+            padding: 15px 25px;
+        }
+
+        .btn-clear:hover {
+            background: #5a6268;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Zone de chargement */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: #e7f3ff;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Zone de résultats */
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+
+        .result-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .result-value {
+            color: #212529;
+        }
+
+        .summary-text {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+            margin-top: 10px;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        /* Comparaison */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .comparison-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .comparison-card.optimized {
+            border-left: 5px solid #28a745;
+        }
+
+        .comparison-card.non-optimized {
+            border-left: 5px solid #dc3545;
+        }
+
+        .comparison-card h4 {
+            margin-bottom: 15px;
+        }
+
+        .gains-card {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            border-radius: 10px;
+            padding: 25px;
+            color: #004085;
+        }
+
+        .gains-card h3 {
+            color: #004085;
+            margin-bottom: 15px;
+        }
+
+        .gain-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            font-weight: bold;
+        }
+
+        .gain-value {
+            font-size: 1.2em;
+            color: #155724;
+        }
+
+        /* Messages d'erreur */
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 5px solid #dc3545;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Test API Flask</h1>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🌱 API Résumé de Texte</h1>
+            <p>Projet Design for Green - Optimisation énergétique avec Pythia-70m</p>
+        </div>
 
-    <textarea id="textToSum" placeholder="Tape ton texte ici..."></textarea>
-    <br><br>
+        <!-- Contenu principal -->
+        <div class="main-content">
 
-    <button onclick="sendText()">Envoyer au back</button>
+            <!-- Sélecteur de mode -->
+            <div class="mode-selector">
+                <h3>🔧 Choisir le mode de génération :</h3>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input type="radio" id="optimized" name="mode" value="true" checked>
+                        <label for="optimized">✅ Optimisé (rapide, économe en énergie)</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="non-optimized" name="mode" value="false">
+                        <label for="non-optimized">❌ Non-optimisé (baseline)</label>
+                    </div>
+                </div>
+            </div>
 
-    <h2>Résumé :</h2>
-    <p id="result"></p>
+            <!-- Zone de saisie -->
+            <div class="input-section">
+                <label for="textToSum">📝 Texte à résumer (en anglais, max 4000 caractères) :</label>
+                <textarea
+                    id="textToSum"
+                    placeholder="Enter your English text here to generate a 10-15 word summary...
+
+Example: Climate change is one of the most pressing issues facing our planet today. Rising global temperatures are causing ice caps to melt, sea levels to rise, and weather patterns to become more extreme..."
+                    maxlength="4000"
+                    oninput="updateCharCounter()"
+                ></textarea>
+                <div class="char-counter" id="charCounter">0 / 4000 caractères</div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="button-group">
+                <button class="btn-summarize" onclick="sendText()">
+                    <span>📊</span> Générer le résumé
+                </button>
+                <button class="btn-compare" onclick="compareVersions()">
+                    <span>⚡</span> Comparer les versions
+                </button>
+                <button class="btn-clear" onclick="clearAll()">
+                    <span>🗑️</span> Effacer
+                </button>
+            </div>
+
+            <!-- Message d'erreur -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Zone de chargement -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Génération du résumé en cours...</p>
+            </div>
+
+            <!-- Résultats simple -->
+            <div class="results" id="results">
+                <div class="result-card">
+                    <h3 id="resultMode">📄 Résumé généré</h3>
+                    <div class="summary-text" id="summaryText"></div>
+
+                    <div style="margin-top: 20px;">
+                        <div class="result-item">
+                            <span class="result-label">Nombre de mots :</span>
+                            <span class="result-value" id="wordCount">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Latence :</span>
+                            <span class="result-value" id="latency">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Énergie consommée :</span>
+                            <span class="result-value" id="energy">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Résultats comparaison -->
+            <div class="results" id="comparisonResults">
+                <h2 style="margin-bottom: 20px; color: #333;">📊 Comparaison des performances</h2>
+
+                <div class="comparison-grid">
+                    <!-- Version non-optimisée -->
+                    <div class="comparison-card non-optimized">
+                        <h4>❌ Version Non-Optimisée</h4>
+                        <div class="summary-text" id="summaryNonOpt" style="border-color: #dc3545; font-size: 0.95em; margin-bottom: 15px;"></div>
+                        <div class="result-item">
+                            <span class="result-label">Mots :</span>
+                            <span class="result-value" id="wordCountNonOpt">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Latence :</span>
+                            <span class="result-value" id="latencyNonOpt">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Énergie :</span>
+                            <span class="result-value" id="energyNonOpt">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Version optimisée -->
+                    <div class="comparison-card optimized">
+                        <h4>✅ Version Optimisée</h4>
+                        <div class="summary-text" id="summaryOpt" style="border-color: #28a745; font-size: 0.95em; margin-bottom: 15px;"></div>
+                        <div class="result-item">
+                            <span class="result-label">Mots :</span>
+                            <span class="result-value" id="wordCountOpt">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Latence :</span>
+                            <span class="result-value" id="latencyOpt">-</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Énergie :</span>
+                            <span class="result-value" id="energyOpt">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gains de performance -->
+                <div class="gains-card">
+                    <h3>🎯 Gains de performance</h3>
+                    <div class="gain-item">
+                        <span>Réduction de la latence :</span>
+                        <span class="gain-value" id="latencyGain">-</span>
+                    </div>
+                    <div class="gain-item">
+                        <span>Réduction de l'énergie :</span>
+                        <span class="gain-value" id="energyGain">-</span>
+                    </div>
+                    <div class="gain-item">
+                        <span>Temps économisé :</span>
+                        <span class="gain-value" id="timeSaved">-</span>
+                    </div>
+                    <div class="gain-item">
+                        <span>Énergie économisée :</span>
+                        <span class="gain-value" id="energySaved">-</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Mise à jour du compteur de caractères
+        function updateCharCounter() {
+            const textarea = document.getElementById("textToSum");
+            const counter = document.getElementById("charCounter");
+            const length = textarea.value.length;
+
+            counter.textContent = `${length} / 4000 caractères`;
+
+            // Changement de couleur selon la longueur
+            if (length > 3800) {
+                counter.classList.add("error");
+                counter.classList.remove("warning");
+            } else if (length > 3500) {
+                counter.classList.add("warning");
+                counter.classList.remove("error");
+            } else {
+                counter.classList.remove("warning", "error");
+            }
+        }
+
+        // Afficher/masquer les zones
+        function showLoading() {
+            document.getElementById("loading").classList.add("active");
+            document.getElementById("results").classList.remove("active");
+            document.getElementById("comparisonResults").classList.remove("active");
+            document.getElementById("errorMessage").classList.remove("active");
+        }
+
+        function hideLoading() {
+            document.getElementById("loading").classList.remove("active");
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById("errorMessage");
+            errorDiv.textContent = "❌ " + message;
+            errorDiv.classList.add("active");
+            hideLoading();
+        }
+
+        // Fonction pour générer un résumé simple
+        async function sendText() {
+            const textToSum = document.getElementById("textToSum").value.trim();
+
+            // Validation
+            if (!textToSum) {
+                showError("Veuillez entrer du texte à résumer.");
+                return;
+            }
+
+            if (textToSum.length > 4000) {
+                showError("Le texte dépasse 4000 caractères.");
+                return;
+            }
+
+            // Récupérer le mode sélectionné
+            const optimized = document.querySelector('input[name="mode"]:checked').value === "true";
+
+            showLoading();
+
+            try {
+                // Appel à l'API
+                const response = await fetch("/summarize", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        textToSum: textToSum,
+                        optimized: optimized
+                    })
+                });
+
+                const data = await response.json();
+
+                // Vérifier si erreur
+                if (!response.ok || !data.success) {
+                    showError(data.error || "Une erreur s'est produite.");
+                    return;
+                }
+
+                // Afficher les résultats
+                hideLoading();
+                document.getElementById("results").classList.add("active");
+
+                document.getElementById("resultMode").textContent = `📄 Résumé généré (Mode ${data.mode})`;
+                document.getElementById("summaryText").textContent = data.results.summary;
+                document.getElementById("wordCount").textContent = data.results.word_count;
+                document.getElementById("latency").textContent = `${data.results.latency} ms`;
+                document.getElementById("energy").textContent = `${data.results.energy_wh} Wh`;
+
+            } catch (error) {
+                showError("Erreur de connexion au serveur : " + error.message);
+            }
+        }
+
+        // Fonction pour comparer les deux versions
+        async function compareVersions() {
+            const textToSum = document.getElementById("textToSum").value.trim();
+
+            // Validation
+            if (!textToSum) {
+                showError("Veuillez entrer du texte à résumer.");
+                return;
+            }
+
+            if (textToSum.length > 4000) {
+                showError("Le texte dépasse 4000 caractères.");
+                return;
+            }
+
+            showLoading();
+
+            try {
+                // Appel à l'API de comparaison
+                const response = await fetch("/compare", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ textToSum: textToSum })
+                });
+
+                const data = await response.json();
+
+                // Vérifier si erreur
+                if (!response.ok || !data.success) {
+                    showError(data.error || "Une erreur s'est produite.");
+                    return;
+                }
+
+                // Afficher les résultats de comparaison
+                hideLoading();
+                document.getElementById("comparisonResults").classList.add("active");
+
+                const comp = data.comparison;
+
+                // Version non-optimisée
+                document.getElementById("summaryNonOpt").textContent = comp.non_optimized.summary;
+                document.getElementById("wordCountNonOpt").textContent = comp.non_optimized.word_count;
+                document.getElementById("latencyNonOpt").textContent = `${comp.non_optimized.latency} ms`;
+                document.getElementById("energyNonOpt").textContent = `${comp.non_optimized.energy_wh} Wh`;
+
+                // Version optimisée
+                document.getElementById("summaryOpt").textContent = comp.optimized.summary;
+                document.getElementById("wordCountOpt").textContent = comp.optimized.word_count;
+                document.getElementById("latencyOpt").textContent = `${comp.optimized.latency} ms`;
+                document.getElementById("energyOpt").textContent = `${comp.optimized.energy_wh} Wh`;
+
+                // Gains
+                const gains = comp.performance_gains;
+                document.getElementById("latencyGain").textContent = `${gains.latency_reduction_percent}%`;
+                document.getElementById("energyGain").textContent = `${gains.energy_reduction_percent}%`;
+                document.getElementById("timeSaved").textContent = `${gains.latency_saved_ms} ms`;
+                document.getElementById("energySaved").textContent = `${gains.energy_saved_wh} Wh`;
+
+            } catch (error) {
+                showError("Erreur de connexion au serveur : " + error.message);
+            }
+        }
+
+        // Fonction pour tout effacer
+        function clearAll() {
+            document.getElementById("textToSum").value = "";
+            document.getElementById("results").classList.remove("active");
+            document.getElementById("comparisonResults").classList.remove("active");
+            document.getElementById("errorMessage").classList.remove("active");
+            updateCharCounter();
+        }
+
+        // Initialisation au chargement
+        window.onload = function() {
+            updateCharCounter();
+        };
+    </script>
 </body>
 </html>
