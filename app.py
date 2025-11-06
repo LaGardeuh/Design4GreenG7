@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from modules.generate_summary import generate_summary
 
 # Configuration Flask : sert le build SvelteKit
@@ -165,4 +165,4 @@ def compare():
 if __name__ == "__main__":
     # Lancement du serveur Flask en mode debug
     # debug=True permet le rechargement automatique et affiche les erreurs détaillées
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=1312)
