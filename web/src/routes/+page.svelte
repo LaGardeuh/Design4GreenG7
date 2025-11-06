@@ -4,10 +4,10 @@
     let optimize = $state(false);
     let language = $state("fr");
 
-    // ✅ Initialise à 0
     let consumption = $state(0);
     let latency = $state(0);
     let summary = $state("");
+    let isLoading = $state(false); // état pour bloquer les actions
 
     function handleInput(e: Event) {
         const target = e.target as HTMLTextAreaElement;
@@ -15,7 +15,8 @@
     }
 
     async function handleSummarize() {
-        if (!text) return;
+        if (!text || isLoading) return;
+        isLoading = true;
 
         try {
             const response = await fetch("/summarize", {
@@ -32,7 +33,6 @@
             if (data.success) {
                 summary = data.results.summary;
                 latency = data.results.latency;
-                // ✅ met à jour consommation avec valeur réelle ou 0
                 consumption = data.results.energy_wh
                     ? Number(data.results.energy_wh.toFixed(6))
                     : 0;
@@ -42,11 +42,14 @@
         } catch (err) {
             console.error(err);
             alert("Erreur serveur, impossible de générer le résumé");
+        } finally {
+            isLoading = false;
         }
     }
 
     async function handleCompare() {
-        if (!text) return;
+        if (!text || isLoading) return;
+        isLoading = true;
 
         try {
             const response = await fetch("/compare", {
@@ -70,6 +73,8 @@
         } catch (err) {
             console.error(err);
             alert("Erreur serveur, impossible de comparer les modèles");
+        } finally {
+            isLoading = false;
         }
     }
 
@@ -77,7 +82,7 @@
         text = "";
         summary = "";
         latency = 0;
-        consumption = 0; // ✅ force reset propre
+        consumption = 0;
     }
 </script>
 
@@ -94,16 +99,17 @@
 
         <div class="bg-card border border-border rounded-xl p-6 space-y-4">
             <div class="relative">
-        <textarea
-                class="w-full h-64 p-4 border border-border rounded-lg resize-none
-                 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
-                 text-foreground placeholder:text-muted-foreground"
-                style="background-color: rgb(var(--color-card));"
-                placeholder="Paste your text here..."
-                value={text}
-                oninput={handleInput}
-                maxlength={maxChars}
-        ></textarea>
+                <textarea
+                        class="w-full h-64 p-4 border border-border rounded-lg resize-none
+                        focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
+                        text-foreground placeholder:text-muted-foreground"
+                        style="background-color: rgb(var(--color-card));"
+                        placeholder="Paste your text here..."
+                        bind:value={text}
+                        on:input={handleInput}
+                        maxlength={maxChars}
+                        disabled={isLoading}
+                ></textarea>
 
                 <div
                         class="absolute bottom-4 right-4 text-sm font-mono text-muted-foreground"
@@ -120,6 +126,7 @@
                             bind:value={language}
                             class="border border-border rounded-lg px-4 py-2 text-foreground outline-none focus:ring-2 focus:ring-primary/50"
                             style="background-color: rgb(var(--color-card));"
+                            disabled={isLoading}
                     >
                         <option value="fr">🇫🇷 French</option>
                         <option value="en">🇬🇧 English</option>
@@ -129,7 +136,8 @@
                         <input
                                 type="checkbox"
                                 bind:checked={optimize}
-                                class="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/50"
+                                class="w-5 h-5 rounded-full border border-gray-400 accent-green-500 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-green-400"
+                                disabled={isLoading}
                         />
                         <span class="text-sm text-muted-foreground">Optimiser</span>
                     </label>
@@ -137,24 +145,27 @@
 
                 <div class="flex gap-3">
                     <button
-                            onclick={handleClean}
-                            class="px-5 py-2 rounded-lg font-medium bg-secondary text-foreground border border-border hover:bg-secondary/80"
+                            on:click={handleClean}
+                            class="px-5 py-2 rounded-lg font-medium bg-secondary text-foreground border border-border hover:bg-green-700"
+                            disabled={isLoading}
                     >
                         Clean
                     </button>
+
                     <button
-                            onclick={handleSummarize}
-                            disabled={text.length === 0}
-                            class="px-6 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                            on:click={handleSummarize}
+                            disabled={text.length === 0 || isLoading}
+                            class="px-6 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-green-700 disabled:opacity-50"
                     >
-                        Summarize
+                        {isLoading ? "Loading..." : "Summarize"}
                     </button>
+
                     <button
-                            onclick={handleCompare}
-                            disabled={text.length === 0}
-                            class="px-6 py-2 rounded-lg font-medium bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+                            on:click={handleCompare}
+                            disabled={text.length === 0 || isLoading}
+                            class="px-6 py-2 rounded-lg font-medium bg-accent text-accent-foreground hover:bg-green-700 disabled:opacity-50"
                     >
-                        Compare Models
+                        {isLoading ? "Loading..." : "Compare Models"}
                     </button>
                 </div>
             </div>
