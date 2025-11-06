@@ -62,7 +62,7 @@ def summarize():
             "results": {
                 "summary": summary,
                 "word_count": word_count,
-                "latency_ms": latency_ms,
+                "latency": latency,
                 "energy_wh": energy
             },
             "metadata": {
