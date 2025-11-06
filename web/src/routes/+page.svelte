@@ -1,16 +1,16 @@
 <script lang="ts">
-    // états "runes" Svelte 5
+    // === États (runes Svelte 5) ===
     let text = $state("");
     const maxChars = 4000;
     let optimize = $state(false);
 
-    // stats simples
+    // Stats simples
     let consumption = $state(0);
     let latency = $state(0);
     let summary = $state("");
     let isLoading = $state(false);
 
-    // comparaison
+    // Comparaison
     let optimizedSummary = $state("");
     let nonOptimizedSummary = $state("");
     let latencyGain = $state(0);
@@ -19,12 +19,15 @@
     let latencyNonOpt = $state(0);
     let wordCountOpt = $state(0);
     let wordCountNonOpt = $state(0);
+    let energyOpt = $state(0);
+    let energyNonOpt = $state(0);
 
     function handleInput(e: Event) {
         const target = e.target as HTMLTextAreaElement;
         text = target.value;
     }
 
+    // === Résumé simple ===
     async function handleSummarize() {
         if (!text || isLoading) return;
         isLoading = true;
@@ -44,9 +47,10 @@
             if (data.success) {
                 summary = data.results.summary;
                 latency = data.results.latency;
-                consumption = data.results.energy_wh
-                    ? Number(data.results.energy_wh.toFixed(6))
-                    : 0;
+                consumption =
+                    data.results.energy_wh !== undefined && data.results.energy_wh !== null
+                        ? Number(data.results.energy_wh.toFixed(6))
+                        : 0;
 
                 // reset comparaison
                 optimizedSummary = "";
@@ -57,6 +61,8 @@
                 latencyNonOpt = 0;
                 wordCountOpt = 0;
                 wordCountNonOpt = 0;
+                energyOpt = 0;
+                energyNonOpt = 0;
             } else {
                 alert(`Erreur: ${data.error}`);
             }
@@ -68,6 +74,7 @@
         }
     }
 
+    // === Comparaison ===
     async function handleCompare() {
         if (!text || isLoading) return;
         isLoading = true;
@@ -82,15 +89,15 @@
             const data = await response.json();
 
             if (data.success) {
-                // résumés
+                // Résumés
                 optimizedSummary = data.comparison.optimized.summary;
                 nonOptimizedSummary = data.comparison.non_optimized.summary;
 
-                // gains
+                // Gains
                 latencyGain = data.comparison.performance_gains.latency_reduction_percent;
                 energyGain = data.comparison.performance_gains.energy_reduction_percent;
 
-                // latences
+                // Latences
                 latencyOpt =
                     data.comparison.performance_gains.latency_optimized_ms ??
                     data.comparison.optimized.latency ??
@@ -101,9 +108,13 @@
                     data.comparison.non_optimized.latency ??
                     0;
 
-                // word counts
+                // Word counts
                 wordCountOpt = data.comparison.optimized.word_count ?? 0;
                 wordCountNonOpt = data.comparison.non_optimized.word_count ?? 0;
+
+                // Energies
+                energyOpt = data.comparison.optimized.energy_wh ?? 0;
+                energyNonOpt = data.comparison.non_optimized.energy_wh ?? 0;
 
                 summary = "";
             } else {
@@ -117,6 +128,7 @@
         }
     }
 
+    // === Reset ===
     function handleClean() {
         text = "";
         summary = "";
@@ -130,6 +142,8 @@
         latencyNonOpt = 0;
         wordCountOpt = 0;
         wordCountNonOpt = 0;
+        energyOpt = 0;
+        energyNonOpt = 0;
     }
 </script>
 
@@ -142,7 +156,7 @@
             <p class="text-muted-foreground">Summarize your text under 4000 characters</p>
         </div>
 
-        <!-- bloc input -->
+        <!-- === Bloc input === -->
         <div class="bg-card border border-border rounded-xl p-6 space-y-4">
             <div class="relative">
                 <textarea
@@ -213,7 +227,7 @@
             </div>
         </div>
 
-        <!-- résumé simple -->
+        <!-- === Résumé simple === -->
         {#if summary}
             <div class="bg-card border border-border rounded-lg p-4">
                 <div class="text-sm text-muted-foreground mb-1">Generated summary:</div>
@@ -221,7 +235,7 @@
             </div>
         {/if}
 
-        <!-- === COMPARAISON === -->
+        <!-- === Comparaison === -->
         {#if optimizedSummary || nonOptimizedSummary}
             <div class="bg-card border border-border rounded-xl p-6 space-y-6 mt-6">
                 <h2 class="text-2xl font-semibold text-center text-foreground">Model Comparison</h2>
@@ -259,17 +273,17 @@
                             <td class="border border-border p-2">Latency (ms)</td>
                             <td class="border border-border p-2 text-center">{latencyNonOpt}</td>
                             <td class="border border-border p-2 text-center">{latencyOpt}</td>
-                            <td class="border border-border p-2 text-center text-green-500">
-                                -{latencyGain}%
-                            </td>
+                            <td class="border border-border p-2 text-center text-green-500">-{latencyGain}%</td>
                         </tr>
                         <tr>
                             <td class="border border-border p-2">Energy (Wh)</td>
-                            <td class="border border-border p-2 text-center">—</td>
-                            <td class="border border-border p-2 text-center">—</td>
-                            <td class="border border-border p-2 text-center text-green-500">
-                                -{energyGain}%
+                            <td class="border border-border p-2 text-center">
+                                {energyNonOpt ? energyNonOpt.toFixed(6) : "-"}
                             </td>
+                            <td class="border border-border p-2 text-center">
+                                {energyOpt ? energyOpt.toFixed(6) : "—"}
+                            </td>
+                            <td class="border border-border p-2 text-center text-green-500">-{energyGain}%</td>
                         </tr>
                         <tr>
                             <td class="border border-border p-2">Word count</td>
@@ -289,7 +303,7 @@
             </div>
         {/if}
 
-        <!-- stats globales -->
+        <!-- === Stats globales === -->
         <div class="grid grid-cols-2 gap-4">
             <div class="bg-card border border-border rounded-lg p-4">
                 <div class="text-sm text-muted-foreground mb-1">Consumption</div>
