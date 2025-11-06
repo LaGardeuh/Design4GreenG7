@@ -21,8 +21,6 @@ Créer une application Flask (avec interface Web) qui renvoie un résumé de 10�
 ### 1. Repo Git avec :
 - `app.py` (API Flask), `requirements.txt`, `README.md` (comment lancer les scripts)
 - Tous les scripts nécessaires pour lancer l'application web
-- `judge.py` (fourni par l'organisation) s'exécute sans changement
-- Script principal de lancement pour démarrer l'application web
 
 ### 2. Rapport court (minimum 2 pages) :
 - Techniques d'optimisation appliquées, hyperparamètres
@@ -34,12 +32,6 @@ Créer une application Flask (avec interface Web) qui renvoie un résumé de 10�
 - Design accessible, claire et cohérente avec les principes de sobriété numérique
 - Affichage : résumé généré, énergie consommée (Wh), latence (ms)
 
-## Évaluation
-
-Le jury lance :
-```bash
-python judge.py
-```
 
 Le script appelle votre `/summarize` en baseline puis en mode optimisé et n'affiche que deux chiffres :
 
