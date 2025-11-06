@@ -3,6 +3,8 @@ from transformers import GPTNeoXForCausalLM, AutoTokenizer
 from codecarbon import EmissionsTracker
 import time
 import re
+import torch.quantization as tq
+
 
 
 def generate_summary(text: str, optimized: bool = False) -> dict:
@@ -30,18 +32,23 @@ def generate_summary(text: str, optimized: bool = False) -> dict:
             # VERSION OPTIMISÉE
 
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-            # Chargement en float16 pour réduire la mémoire
+            # Chargement normal (FP32)
             model = GPTNeoXForCausalLM.from_pretrained(
                 model_name,
-                dtype=torch.float16,
+                torch_dtype=torch.float32,
                 low_cpu_mem_usage=True
             )
 
-            # on prend le GPU si disponible
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            model = model.to(device)
+            # Quantization dynamique INT8 (CPU) pour consommé moins d'energie
+            model = tq.quantize_dynamic(
+                model,
+                {torch.nn.Linear},  # uniquement sur les couches linéaires
+                dtype=torch.qint8
+            )
 
+            device = "cpu"
+            #on utilise le bon device
+            model = model.to(device)
             # Mode évaluation
             model.eval()
 
