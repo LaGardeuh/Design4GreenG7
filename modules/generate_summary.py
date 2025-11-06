@@ -39,7 +39,7 @@ def generate_summary(text: str, optimized: bool = False) -> dict:
                 low_cpu_mem_usage=True
             )
 
-            # Quantization dynamique INT8 (CPU)
+            # Quantization dynamique INT8 (CPU) pour consommé moins d'energie
             model = tq.quantize_dynamic(
                 model,
                 {torch.nn.Linear},  # uniquement sur les couches linéaires
