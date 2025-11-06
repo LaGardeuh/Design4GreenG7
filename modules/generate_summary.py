@@ -1,13 +1,64 @@
+import os
+
 import torch
+from safetensors.torch import load_file, save_file
 from transformers import GPTNeoXForCausalLM, AutoTokenizer
 from codecarbon import EmissionsTracker
 import time
 import re
-import torch.quantization as tq
+
+BASE_CACHE_DIR = os.path.expanduser("~/.cache/models/")
 
 
+def reconstruct_model_if_needed(model_folder: str) -> str:
+    """
+    Reconstruit un modèle PyTorch depuis ses splits si nécessaire.
 
-def generate_summary(text: str, optimized: bool = False) -> dict:
+    Params:
+        model_folder : dossier contenant :
+            - config.json
+            - tokenizer.json
+            - model_part*.safetensors
+
+    Returns:
+        model_folder : chemin du dossier contenant model.safetensors reconstruit
+    """
+
+    final_model_path = os.path.join(model_folder, "model.safetensors")
+
+    # Modèle déjà reconstruit → rien à faire
+    if os.path.exists(final_model_path):
+        return model_folder
+
+    print(f"Reconstruction du modèle dans : {model_folder}")
+
+    # Récupération des splits
+    split_files = sorted([
+        os.path.join(model_folder, f)
+        for f in os.listdir(model_folder)
+        if f.startswith("model_part") and f.endswith(".safetensors")
+    ])
+
+    if not split_files:
+        raise FileNotFoundError(f"Aucun split trouvé dans : {model_folder}")
+
+    # Charger tous les splits
+    all_splits = [load_file(f) for f in split_files]
+
+    # Concaténer les valeurs clé par clé
+    merged = {
+        key: torch.cat([part[key] for part in all_splits], dim=0)
+        for key in all_splits[0].keys()
+    }
+
+    # Sauvegarde finale
+    save_file(merged, final_model_path)
+
+    print(f"Modèle reconstruit : {final_model_path}")
+    return model_folder
+
+
+def generate_summary(text: str, optimized: bool = False, model_folder: str = None) -> dict:
     # Génère un résumé de 10-15 mots à partir d'un texte en anglais.
 
     # Initialisation du tracker de consomation
@@ -26,16 +77,34 @@ def generate_summary(text: str, optimized: bool = False) -> dict:
 
     try:
         # Chargement du modèle
-        model_name = "EleutherAI/pythia-70m-deduped"
+        # model_name = "EleutherAI/pythia-70m-deduped"
+        model_path = reconstruct_model_if_needed(model_folder)
 
         if optimized:
             # VERSION OPTIMISÉE
 
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            # Chargement normal (FP32)
+            # VERSION DE AUBIN
+            # tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+            # VERSION DE MALO
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+            # Chargement en float16 pour réduire la mémoire
+
+            # VERSION DE AUBIN
+            # model = GPTNeoXForCausalLM.from_pretrained(
+            #     model_name,
+            #     dtype=torch.float16,
+            #     low_cpu_mem_usage=True
+            # )
+
+
+
+
+            # VERSION DE MALO
             model = GPTNeoXForCausalLM.from_pretrained(
-                model_name,
-                torch_dtype=torch.float32,
+                model_path,
+                dtype=torch.float32, #a passer en float16 de préférence mais ça ne fonctionne pas sur mon pc
                 low_cpu_mem_usage=True
             )
 
@@ -72,8 +141,7 @@ Summary:"""
             # Déplace les inputs sur le meme device que le modele (GPU ou CPU)
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-
-            with torch.no_grad(): # Désactive le calcul des gradients (pas d'entrainement)
+            with torch.no_grad():  # Désactive le calcul des gradients (pas d'entrainement)
                 with torch.inference_mode():
                     outputs = model.generate(
                         **inputs,
@@ -86,16 +154,23 @@ Summary:"""
                         temperature=1.0,
                         pad_token_id=tokenizer.eos_token_id,
                         eos_token_id=tokenizer.eos_token_id,
-                        use_cache=True # Utilise le KV cache pour accélérer
+                        use_cache=True  # Utilise le KV cache pour accélérer
                     )
 
         else:
             # VERSION NON-OPTIMISÉE
 
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # VERSION AUBIN
+            # tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
 
             # Float32 complet (conf de base)
-            model = GPTNeoXForCausalLM.from_pretrained(model_name)
+            # VERSION AUBIN
+            # model = GPTNeoXForCausalLM.from_pretrained(model_name)
+            model = GPTNeoXForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=torch.float32,
+            )
 
             # CPU forcé pas de gpu pour le non opti
             device = "cpu"
@@ -118,7 +193,7 @@ Summary:"""
             inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=800)
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            with torch.no_grad(): #on entraine pas non plus
+            with torch.no_grad():  # on entraine pas non plus
                 outputs = model.generate(
                     **inputs,
                     max_new_tokens=18,
