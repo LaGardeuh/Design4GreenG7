@@ -52,7 +52,7 @@ def summarize():
         # Extraction des résultats (latence déjà en ms)
         summary = result['summary']
         word_count = result['word_count']
-        latency_ms = result['latency']  # Déjà en millisecondes
+        latency = result['latency']  # Déjà en millisecondes
         energy = result['energy_consumed']
 
         # Retour de la réponse JSON bien formatée
