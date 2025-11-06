@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from modules.generate_summary import generate_summary
 
 # Configuration Flask : sert le build SvelteKit
