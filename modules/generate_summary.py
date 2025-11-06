@@ -6,6 +6,7 @@ from transformers import GPTNeoXForCausalLM, AutoTokenizer
 from codecarbon import EmissionsTracker
 import time
 import re
+import torch.quantization as tq
 
 BASE_CACHE_DIR = os.path.expanduser("~/.cache/models/")
 
@@ -83,28 +84,12 @@ def generate_summary(text: str, optimized: bool = False, model_folder: str = Non
         if optimized:
             # VERSION OPTIMISÉE
 
-            # VERSION DE AUBIN
-            # tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-            # VERSION DE MALO
             tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-            # Chargement en float16 pour réduire la mémoire
-
-            # VERSION DE AUBIN
-            # model = GPTNeoXForCausalLM.from_pretrained(
-            #     model_name,
-            #     dtype=torch.float16,
-            #     low_cpu_mem_usage=True
-            # )
-
-
-
-
-            # VERSION DE MALO
+            # charger en fp32 pour commencer
             model = GPTNeoXForCausalLM.from_pretrained(
                 model_path,
-                dtype=torch.float32, #a passer en float16 de préférence mais ça ne fonctionne pas sur mon pc
+                dtype=torch.float32,
                 low_cpu_mem_usage=True
             )
 
@@ -159,14 +144,9 @@ Summary:"""
 
         else:
             # VERSION NON-OPTIMISÉE
-
-            # VERSION AUBIN
-            # tokenizer = AutoTokenizer.from_pretrained(model_name)
             tokenizer = AutoTokenizer.from_pretrained(model_path)
 
             # Float32 complet (conf de base)
-            # VERSION AUBIN
-            # model = GPTNeoXForCausalLM.from_pretrained(model_name)
             model = GPTNeoXForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=torch.float32,
