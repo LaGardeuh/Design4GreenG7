@@ -83,13 +83,9 @@ def summarize():
 def compare():
     """
     Route pour comparer les deux versions (optimisée vs non-optimisée).
-    Utile pour ton rapport de Design for Green !
-
-    Attend un JSON avec :
-    - textToSum : le texte à résumer
+    Retourne aussi les deux latences brutes en millisecondes.
     """
 
-    # Récupération du texte
     data = request.json
     text = data.get("textToSum", "")
 
@@ -107,50 +103,56 @@ def compare():
         }), 400
 
     try:
-        # Génération avec version NON-OPTIMISÉE
         model_folder = AVAILABLE_MODELS["mlsum"]
+
+        # Génération avec version NON OPTIMISÉE
         result_non_opt = generate_summary(text, optimized=False, model_folder=model_folder)
 
         # Génération avec version OPTIMISÉE
         result_opt = generate_summary(text, optimized=True, model_folder=model_folder)
 
-        # Calcul des gains de performance
+        # Calcul des gains
         latency_gain = round(
-            ((result_non_opt['latency'] - result_opt['latency']) / result_non_opt['latency']) * 100,
+            ((result_non_opt["latency"] - result_opt["latency"]) / result_non_opt["latency"]) * 100,
             2
         )
         energy_gain = round(
-            ((result_non_opt['energy_consumed'] - result_opt['energy_consumed']) / result_non_opt[
-                'energy_consumed']) * 100,
+            ((result_non_opt["energy_consumed"] - result_opt["energy_consumed"]) /
+             result_non_opt["energy_consumed"]) * 100,
             2
-        ) if result_non_opt['energy_consumed'] > 0 else 0
+        ) if result_non_opt["energy_consumed"] > 0 else 0
 
-        # Retour de la comparaison complète
+        # === 🆕 Ajout explicite des deux latences dans la réponse ===
+        latency_non_opt = result_non_opt["latency"]
+        latency_opt = result_opt["latency"]
+
         return jsonify({
             "success": True,
             "comparison": {
                 "non_optimized": {
-                    "summary": result_non_opt['summary'],
-                    "word_count": result_non_opt['word_count'],
-                    "latency": result_non_opt['latency'],
-                    "energy_wh": result_non_opt['energy_consumed']
+                    "summary": result_non_opt["summary"],
+                    "word_count": result_non_opt["word_count"],
+                    "latency": latency_non_opt,
+                    "energy_wh": result_non_opt["energy_consumed"]
                 },
                 "optimized": {
-                    "summary": result_opt['summary'],
-                    "word_count": result_opt['word_count'],
-                    "latency": result_opt['latency'],
-                    "energy_wh": result_opt['energy_consumed']
+                    "summary": result_opt["summary"],
+                    "word_count": result_opt["word_count"],
+                    "latency": latency_opt,
+                    "energy_wh": result_opt["energy_consumed"]
                 },
                 "performance_gains": {
                     "latency_reduction_percent": latency_gain,
                     "energy_reduction_percent": energy_gain,
-                    "latency_saved_ms": round(result_non_opt['latency'] - result_opt['latency'], 2),
-                    "energy_saved_wh": round(result_non_opt['energy_consumed'] - result_opt['energy_consumed'], 6)
+                    "latency_saved_ms": round(latency_non_opt - latency_opt, 2),
+                    "energy_saved_wh": round(
+                        result_non_opt["energy_consumed"] - result_opt["energy_consumed"], 6
+                    ),
+                    "latency_non_optimized_ms": latency_non_opt,  # 🆕 ajouté
+                    "latency_optimized_ms": latency_opt           # 🆕 ajouté
                 }
             },
-            "metadata": {
-                "input_length": len(text)
-            }
+            "metadata": {"input_length": len(text)}
         }), 200
 
     except Exception as e:
