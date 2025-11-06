@@ -2,12 +2,17 @@
     let text = $state("");
     const maxChars = 4000;
     let optimize = $state(false);
-    let language = $state("fr");
 
     let consumption = $state(0);
     let latency = $state(0);
     let summary = $state("");
-    let isLoading = $state(false); // état pour bloquer les actions
+    let isLoading = $state(false);
+
+    // Pour le mode comparaison :
+    let optimizedSummary = $state("");
+    let nonOptimizedSummary = $state("");
+    let latencyGain = $state(0);
+    let energyGain = $state(0);
 
     function handleInput(e: Event) {
         const target = e.target as HTMLTextAreaElement;
@@ -36,6 +41,12 @@
                 consumption = data.results.energy_wh
                     ? Number(data.results.energy_wh.toFixed(6))
                     : 0;
+
+                // Réinitialise la comparaison s’il y en avait une
+                optimizedSummary = "";
+                nonOptimizedSummary = "";
+                latencyGain = 0;
+                energyGain = 0;
             } else {
                 alert(`Erreur: ${data.error}`);
             }
@@ -61,12 +72,13 @@
             const data = await response.json();
 
             if (data.success) {
-                alert(
-                    `Comparaison Optimisé vs Non-optimisé :\n\n` +
-                    `Optimisé:\n${data.comparison.optimized.summary}\n\n` +
-                    `Non-optimisé:\n${data.comparison.non_optimized.summary}\n\n` +
-                    `Gains : Latence ${data.comparison.performance_gains.latency_reduction_percent}% / Énergie ${data.comparison.performance_gains.energy_reduction_percent}%`
-                );
+                optimizedSummary = data.comparison.optimized.summary;
+                nonOptimizedSummary = data.comparison.non_optimized.summary;
+                latencyGain = data.comparison.performance_gains.latency_reduction_percent;
+                energyGain = data.comparison.performance_gains.energy_reduction_percent;
+
+                // Efface l’ancien résumé
+                summary = "";
             } else {
                 alert(`Erreur: ${data.error}`);
             }
@@ -83,6 +95,10 @@
         summary = "";
         latency = 0;
         consumption = 0;
+        optimizedSummary = "";
+        nonOptimizedSummary = "";
+        latencyGain = 0;
+        energyGain = 0;
     }
 </script>
 
@@ -101,8 +117,8 @@
             <div class="relative">
                 <textarea
                         class="w-full h-64 p-4 border border-border rounded-lg resize-none
-                        focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
-                        text-foreground placeholder:text-muted-foreground"
+                    focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
+                    text-foreground placeholder:text-muted-foreground"
                         style="background-color: rgb(var(--color-card));"
                         placeholder="Paste your text here..."
                         bind:value={text}
@@ -111,34 +127,29 @@
                         disabled={isLoading}
                 ></textarea>
 
-                <div
-                        class="absolute bottom-4 right-4 text-sm font-mono text-muted-foreground"
-                >
+                <div class="absolute bottom-4 right-4 text-sm font-mono text-muted-foreground">
                     {text.length}/{maxChars}
                 </div>
             </div>
 
-            <div
-                    class="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border"
-            >
+            <div class="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border">
                 <div class="flex flex-wrap gap-4 items-center">
-                    <select
-                            bind:value={language}
-                            class="border border-border rounded-lg px-4 py-2 text-foreground outline-none focus:ring-2 focus:ring-primary/50"
-                            style="background-color: rgb(var(--color-card));"
-                            disabled={isLoading}
-                    >
-                        <option value="fr">🇫🇷 French</option>
-                        <option value="en">🇬🇧 English</option>
-                    </select>
-
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input
                                 type="checkbox"
                                 bind:checked={optimize}
-                                class="w-5 h-5 rounded-full border border-gray-400 accent-green-500 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-green-400"
+                                class="hidden peer"
                                 disabled={isLoading}
                         />
+                        <span class="w-5 h-5 rounded-full border border-gray-500 flex items-center justify-center
+                            peer-checked:bg-green-500 peer-checked:border-green-500 transition-all duration-200">
+                            <svg
+                                    class="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </span>
                         <span class="text-sm text-muted-foreground">Optimiser</span>
                     </label>
                 </div>
@@ -146,7 +157,7 @@
                 <div class="flex gap-3">
                     <button
                             on:click={handleClean}
-                            class="px-5 py-2 rounded-lg font-medium bg-secondary text-foreground border border-border hover:bg-green-700"
+                            class="px-5 py-2 rounded-lg font-medium bg-green-700 text-white hover:bg-green-800 transition-colors"
                             disabled={isLoading}
                     >
                         Clean
@@ -155,7 +166,7 @@
                     <button
                             on:click={handleSummarize}
                             disabled={text.length === 0 || isLoading}
-                            class="px-6 py-2 rounded-lg font-medium bg-primary text-primary-foreground hover:bg-green-700 disabled:opacity-50"
+                            class="px-6 py-2 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
                         {isLoading ? "Loading..." : "Summarize"}
                     </button>
@@ -163,7 +174,7 @@
                     <button
                             on:click={handleCompare}
                             disabled={text.length === 0 || isLoading}
-                            class="px-6 py-2 rounded-lg font-medium bg-accent text-accent-foreground hover:bg-green-700 disabled:opacity-50"
+                            class="px-6 py-2 rounded-lg font-medium bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
                     >
                         {isLoading ? "Loading..." : "Compare Models"}
                     </button>
@@ -174,7 +185,33 @@
         {#if summary}
             <div class="bg-card border border-border rounded-lg p-4">
                 <div class="text-sm text-muted-foreground mb-1">Résumé généré :</div>
-                <p class="text-foreground text-lg">{summary}</p>
+                <p class="text-foreground text-lg whitespace-pre-wrap">{summary}</p>
+            </div>
+        {/if}
+
+        {#if optimizedSummary || nonOptimizedSummary}
+            <div class="grid md:grid-cols-2 gap-4">
+                <div class="bg-card border border-border rounded-lg p-4">
+                    <div class="text-sm text-muted-foreground mb-1">Optimisé :</div>
+                    <p class="text-foreground text-lg whitespace-pre-wrap">{optimizedSummary}</p>
+                </div>
+
+                <div class="bg-card border border-border rounded-lg p-4">
+                    <div class="text-sm text-muted-foreground mb-1">Non optimisé :</div>
+                    <p class="text-foreground text-lg whitespace-pre-wrap">{nonOptimizedSummary}</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <div class="bg-card border border-border rounded-lg p-4 text-center">
+                    <div class="text-sm text-muted-foreground mb-1">Gain en latence</div>
+                    <div class="text-2xl font-bold text-green-500">-{latencyGain}%</div>
+                </div>
+
+                <div class="bg-card border border-border rounded-lg p-4 text-center">
+                    <div class="text-sm text-muted-foreground mb-1">Gain en énergie</div>
+                    <div class="text-2xl font-bold text-green-500">-{energyGain}%</div>
+                </div>
             </div>
         {/if}
 
