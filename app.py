@@ -3,6 +3,11 @@ from modules.generate_summary import generate_summary
 
 app = Flask(__name__)
 
+AVAILABLE_MODELS = {
+    "xsum": "./models/pythia70m-french-mlsum-adapted/",
+    "mlsum": "./models/pythia70m-xsum-100p-trained"
+}
+
 
 @app.route("/")
 def home():
@@ -46,7 +51,8 @@ def summarize():
 
     try:
         # Génération du résumé avec le paramètre optimized choisi
-        result = generate_summary(text, optimized=optimized)
+        model_folder = AVAILABLE_MODELS["mlsum"]
+        result = generate_summary(text, optimized=optimized, model_folder=model_folder)
 
         # Extraction des résultats (latence déjà en ms)
         summary = result['summary']
@@ -107,10 +113,11 @@ def compare():
 
     try:
         # Génération avec version NON-OPTIMISÉE
-        result_non_opt = generate_summary(text, optimized=False)
+        model_folder = AVAILABLE_MODELS["mlsum"]
+        result_non_opt = generate_summary(text, optimized=False, model_folder=model_folder)
 
         # Génération avec version OPTIMISÉE
-        result_opt = generate_summary(text, optimized=True)
+        result_opt = generate_summary(text, optimized=True, model_folder=model_folder)
 
         # Calcul des gains de performance
         latency_gain = round(
