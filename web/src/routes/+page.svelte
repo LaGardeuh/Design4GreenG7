@@ -48,7 +48,7 @@
                     ? Number(data.results.energy_wh.toFixed(6))
                     : 0;
 
-                // on nettoie la zone comparaison si on passe en mode "résumé simple"
+                // reset comparaison
                 optimizedSummary = "";
                 nonOptimizedSummary = "";
                 latencyGain = 0;
@@ -90,7 +90,7 @@
                 latencyGain = data.comparison.performance_gains.latency_reduction_percent;
                 energyGain = data.comparison.performance_gains.energy_reduction_percent;
 
-                // latences : on prend ce qu’on a, sinon on retombe sur celles du haut
+                // latences
                 latencyOpt =
                     data.comparison.performance_gains.latency_optimized_ms ??
                     data.comparison.optimized.latency ??
@@ -101,11 +101,10 @@
                     data.comparison.non_optimized.latency ??
                     0;
 
-                // nombres de mots
+                // word counts
                 wordCountOpt = data.comparison.optimized.word_count ?? 0;
                 wordCountNonOpt = data.comparison.non_optimized.word_count ?? 0;
 
-                // on efface le résumé simple
                 summary = "";
             } else {
                 alert(`Erreur: ${data.error}`);
@@ -148,8 +147,8 @@
             <div class="relative">
                 <textarea
                         class="w-full h-64 p-4 border border-border rounded-lg resize-none
-                        focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
-                        text-foreground placeholder:text-muted-foreground"
+                    focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none
+                    text-foreground placeholder:text-muted-foreground"
                         style="background-color: rgb(var(--color-card));"
                         placeholder="Paste your text here..."
                         bind:value={text}
@@ -166,12 +165,7 @@
             <div class="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border">
                 <div class="flex flex-wrap gap-4 items-center">
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input
-                                type="checkbox"
-                                bind:checked={optimize}
-                                class="hidden peer"
-                                disabled={isLoading}
-                        />
+                        <input type="checkbox" bind:checked={optimize} class="hidden peer" disabled={isLoading} />
                         <span
                                 class="w-5 h-5 rounded-full border border-gray-500 flex items-center justify-center
                             peer-checked:bg-green-500 peer-checked:border-green-500 transition-all duration-200"
@@ -227,48 +221,70 @@
             </div>
         {/if}
 
-        <!-- comparaison -->
+        <!-- === COMPARAISON === -->
         {#if optimizedSummary || nonOptimizedSummary}
-            <div class="grid md:grid-cols-2 gap-4">
-                <div class="bg-card border border-border rounded-lg p-4">
-                    <div class="text-sm text-muted-foreground mb-1">Optimized:</div>
-                    <p class="text-foreground text-lg whitespace-pre-wrap">{optimizedSummary}</p>
-                </div>
+            <div class="bg-card border border-border rounded-xl p-6 space-y-6 mt-6">
+                <h2 class="text-2xl font-semibold text-center text-foreground">Model Comparison</h2>
 
-                <div class="bg-card border border-border rounded-lg p-4">
-                    <div class="text-sm text-muted-foreground mb-1">Non optimized:</div>
-                    <p class="text-foreground text-lg whitespace-pre-wrap">{nonOptimizedSummary}</p>
-                </div>
-            </div>
+                <!-- Résumés -->
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-muted/20 border border-border rounded-lg p-4">
+                        <div class="text-sm text-muted-foreground mb-1 font-medium">Non Optimized</div>
+                        <p class="text-foreground text-base whitespace-pre-wrap leading-relaxed">
+                            {nonOptimizedSummary}
+                        </p>
+                    </div>
 
-            <div class="grid grid-cols-2 gap-4 mt-4">
-                <div class="bg-card border border-border rounded-lg p-4 text-center">
-                    <div class="text-sm text-muted-foreground mb-1">Latency gain</div>
-                    <div class="text-2xl font-bold text-green-500">-{latencyGain}%</div>
-                </div>
-
-                <div class="bg-card border border-border rounded-lg p-4 text-center">
-                    <div class="text-sm text-muted-foreground mb-1">Energy gain</div>
-                    <div class="text-2xl font-bold text-green-500">-{energyGain}%</div>
-                </div>
-            </div>
-
-            <!-- latences + word count -->
-            <div class="grid grid-cols-2 gap-4 mt-4">
-                <div class="bg-card border border-border rounded-lg p-4 text-center">
-                    <div class="text-sm text-muted-foreground mb-1">Latency (non optimized)</div>
-                    <div class="text-xl font-semibold text-foreground">{latencyNonOpt} ms</div>
-                    <div class="text-sm text-muted-foreground mt-1">
-                        Word count: {wordCountNonOpt}
+                    <div class="bg-muted/20 border border-border rounded-lg p-4">
+                        <div class="text-sm text-muted-foreground mb-1 font-medium">Optimized</div>
+                        <p class="text-foreground text-base whitespace-pre-wrap leading-relaxed">
+                            {optimizedSummary}
+                        </p>
                     </div>
                 </div>
 
-                <div class="bg-card border border-border rounded-lg p-4 text-center">
-                    <div class="text-sm text-muted-foreground mb-1">Latency (optimized)</div>
-                    <div class="text-xl font-semibold text-foreground">{latencyOpt} ms</div>
-                    <div class="text-sm text-muted-foreground mt-1">
-                        Word count: {wordCountOpt}
-                    </div>
+                <!-- Tableau comparatif -->
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-border rounded-lg text-sm text-foreground">
+                        <thead class="bg-muted text-muted-foreground uppercase tracking-wide">
+                        <tr>
+                            <th class="border border-border p-2 text-left">Metric</th>
+                            <th class="border border-border p-2 text-center">Non Optimized</th>
+                            <th class="border border-border p-2 text-center">Optimized</th>
+                            <th class="border border-border p-2 text-center text-green-500">Gain</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td class="border border-border p-2">Latency (ms)</td>
+                            <td class="border border-border p-2 text-center">{latencyNonOpt}</td>
+                            <td class="border border-border p-2 text-center">{latencyOpt}</td>
+                            <td class="border border-border p-2 text-center text-green-500">
+                                -{latencyGain}%
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-border p-2">Energy (Wh)</td>
+                            <td class="border border-border p-2 text-center">—</td>
+                            <td class="border border-border p-2 text-center">—</td>
+                            <td class="border border-border p-2 text-center text-green-500">
+                                -{energyGain}%
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="border border-border p-2">Word count</td>
+                            <td class="border border-border p-2 text-center">{wordCountNonOpt}</td>
+                            <td class="border border-border p-2 text-center">{wordCountOpt}</td>
+                            <td class="border border-border p-2 text-center text-green-500">
+                                {wordCountNonOpt && wordCountOpt
+                                    ? Math.round(
+                                        ((wordCountNonOpt - wordCountOpt) / wordCountNonOpt) * 100
+                                    )
+                                    : 0}%
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         {/if}
